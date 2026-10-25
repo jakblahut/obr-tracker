@@ -16,7 +16,7 @@ type Kind = "bg" | "fill" | "temp" | "ring" | "x1" | "x2";
 const isCross = (kind: Kind) => kind === "x1" || kind === "x2";
 
 /** Bump when bar geometry or style changes so old items get rebuilt. */
-const BAR_VERSION = 7;
+const BAR_VERSION = 8;
 
 interface BarMeta {
   v?: number;
@@ -24,8 +24,11 @@ interface BarMeta {
   kind: Kind;
   /** Token scale when the item was built; rebuilt if the token is resized. */
   scale: string;
-  /** Full inner bar: left edge and width, used to size fill and temp. */
-  innerX?: number;
+  /**
+   * Full inner bar: left edge (relative to the token, which moves) and width,
+   * used to size fill and temp.
+   */
+  innerDx?: number;
   innerWidth?: number;
 }
 
@@ -167,9 +170,9 @@ async function doSync() {
   if (toDelete.length) await OBR.scene.items.deleteItems(toDelete);
 }
 
-function segment(meta: BarMeta, data: TokenData, kind: "fill" | "temp") {
+function segment(meta: BarMeta, token: Item, data: TokenData, kind: "fill" | "temp") {
   const fill = barFill(data);
-  const innerX = meta.innerX ?? 0;
+  const innerX = token.position.x + (meta.innerDx ?? 0);
   const innerWidth = meta.innerWidth ?? 0;
   const from = kind === "fill" ? 0 : fill.hp;
   const to = kind === "fill" ? fill.hp : fill.temp;
@@ -189,7 +192,7 @@ function shapeChanges(item: Shape, w: Wanted): ((s: Item) => void)[] {
   const changes: ((s: Shape) => void)[] = [];
   const color = hpColor(barFill(w.data).ratio);
   if (w.kind === "fill" || w.kind === "temp") {
-    const seg = segment(item.metadata[BAR_KEY] as BarMeta, w.data, w.kind);
+    const seg = segment(item.metadata[BAR_KEY] as BarMeta, w.token, w.data, w.kind);
     const opacity = seg.empty ? 0 : 1;
     if (Math.abs(item.width - seg.width) > 0.01) changes.push((s) => (s.width = seg.width));
     if (Math.abs(item.position.x - seg.x) > 0.01) changes.push((s) => (s.position.x = seg.x));
@@ -267,9 +270,9 @@ async function build(w: Wanted, dpi: number): Promise<(Shape | Line)[]> {
   }
 
   const r = barRect(bounds, dpi);
-  const innerX = r.x + r.border;
+  const innerDx = r.x + r.border - w.token.position.x;
   const innerWidth = r.width - r.border * 2;
-  const meta = { owner, scale, innerX, innerWidth };
+  const meta = { owner, scale, innerDx, innerWidth };
   const color = hpColor(barFill(w.data).ratio);
 
   const bg = base(w, { ...meta, kind: "bg" })
@@ -287,7 +290,7 @@ async function build(w: Wanted, dpi: number): Promise<(Shape | Line)[]> {
     .build();
 
   const part = (kind: "fill" | "temp", fillColor: string, zOffset: number) => {
-    const seg = segment({ ...meta, kind }, w.data, kind);
+    const seg = segment({ ...meta, kind }, w.token, w.data, kind);
     return base(w, { ...meta, kind })
       .shapeType("RECTANGLE")
       .width(seg.width)
