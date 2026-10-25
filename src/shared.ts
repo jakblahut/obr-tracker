@@ -71,6 +71,14 @@ export function combatOrder(items: Item[]): Item[] {
     });
 }
 
+/**
+ * Enemies at 0 HP are dead: crossed out and skipped in turn order. Party
+ * members at 0 HP still take turns (death saves).
+ */
+export function isDead(data: TokenData): boolean {
+  return !data.party && data.maxHp > 0 && data.hp <= 0;
+}
+
 /** Green above half, yellow above a quarter, red below. */
 export function hpColor(ratio: number): string {
   if (ratio > 0.5) return "#3ccf4e";

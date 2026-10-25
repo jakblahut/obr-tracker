@@ -7,6 +7,7 @@ import {
   applyHpChange,
   clampHp,
   combatOrder,
+  isDead,
   readCombat,
   tokenData,
   tokenName,
@@ -46,20 +47,22 @@ function parseOptional(raw: string): number | null | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+const alive = (t: Item) => !isDead(tokenData(t)!);
+
 function startCombat() {
-  const order = combatOrder(tokens);
-  if (!order.length) return;
-  setCombat({ phase: "active", round: 1, turnId: order[0].id });
+  const first = combatOrder(tokens).find(alive);
+  if (!first) return;
+  setCombat({ phase: "active", round: 1, turnId: first.id });
 }
 
+/** Moves to the next (or previous) living combatant, skipping the dead. */
 function step(dir: 1 | -1) {
   const order = combatOrder(tokens);
-  if (!order.length) return;
+  if (!order.some(alive)) return;
   let idx = order.findIndex((t) => t.id === combat.turnId);
   let round = combat.round;
-  if (idx === -1) {
-    idx = 0;
-  } else {
+  if (idx === -1) dir = 1;
+  for (let n = 0; n < order.length; n++) {
     idx += dir;
     if (idx >= order.length) {
       idx = 0;
@@ -69,8 +72,8 @@ function step(dir: 1 | -1) {
       idx = order.length - 1;
       round -= 1;
     }
+    if (alive(order[idx])) return setCombat({ turnId: order[idx].id, round });
   }
-  setCombat({ turnId: order[idx].id, round });
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -100,6 +103,8 @@ function row(token: Item): HTMLElement {
   if (showInit) classes.push("with-init");
   if (isTurn) classes.push("turn");
   if (combat.phase !== "idle" && !data.inCombat) classes.push("out");
+  const dead = isDead(data);
+  if (dead) classes.push("dead");
 
   const name = el("span", { className: "name", title: "Select token" }, tokenName(token));
   name.addEventListener("click", () => OBR.player.select([token.id]));
@@ -152,7 +157,7 @@ function row(token: Item): HTMLElement {
     }),
   );
 
-  const cells: (Node | string)[] = [el("span", { className: "marker" }, isTurn ? "▶" : ""), name, side, fight];
+  const cells: (Node | string)[] = [el("span", { className: "marker", title: dead ? "Dead (skipped)" : "" }, isTurn ? "▶" : dead ? "✕" : ""), name, side, fight];
   if (showInit) {
     const init = numberInput(data.init, "Init", (raw) => {
       const n = parseOptional(raw);

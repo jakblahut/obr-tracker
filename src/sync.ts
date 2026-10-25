@@ -1,6 +1,6 @@
-import OBR, { Item, Shape, buildShape, isShape } from "@owlbear-rodeo/sdk";
+import OBR, { Item, Line, Shape, buildLine, buildShape, isLine, isShape } from "@owlbear-rodeo/sdk";
 import { barRect, ringBox } from "./geometry";
-import { BAR_KEY, CombatData, TokenData, barFill, hpColor, readCombat, tokenData } from "./shared";
+import { BAR_KEY, CombatData, TokenData, barFill, hpColor, isDead, readCombat, tokenData } from "./shared";
 
 /**
  * Draws static HP bars and the turn ring as real scene items attached to
@@ -10,7 +10,10 @@ import { BAR_KEY, CombatData, TokenData, barFill, hpColor, readCombat, tokenData
  * top by local.ts on clients that run the extension.
  */
 
-type Kind = "bg" | "fill" | "temp" | "ring";
+/** x1/x2 are the two strokes of the X over a dead enemy. */
+type Kind = "bg" | "fill" | "temp" | "ring" | "x1" | "x2";
+
+const isCross = (kind: Kind) => kind === "x1" || kind === "x2";
 
 /** Bump when bar geometry or style changes so old items get rebuilt. */
 const BAR_VERSION = 6;
@@ -35,6 +38,8 @@ interface Wanted {
 
 /** Keeps rings under bars on the same layer. */
 const RING_Z_DROP = 1e12;
+
+const DEAD_COLOR = "#e5383b";
 
 export const RING_PARTY = "#b46bff";
 export const RING_ENEMY = "#ff3b3b";
@@ -94,6 +99,12 @@ function wantedItems(tokens: Item[], combat: CombatData): Map<string, Wanted> {
     if (show.ring) {
       wanted.set(key(token.id, "ring"), { token, kind: "ring", visible: true, data });
     }
+    if (isDead(data)) {
+      // Everyone sees that an enemy died, including the cast.
+      for (const kind of ["x1", "x2"] as const) {
+        wanted.set(key(token.id, kind), { token, kind, visible: true, data });
+      }
+    }
   }
   return wanted;
 }
@@ -111,21 +122,22 @@ async function doSync() {
   const wanted = wantedItems(tokens, combat);
 
   const toDelete: string[] = [];
-  const existing = new Map<string, Shape>();
+  const existing = new Map<string, Item>();
   for (const item of items) {
     const meta = item.metadata[BAR_KEY] as BarMeta | undefined;
     if (!meta) continue;
     const k = key(meta.owner, meta.kind);
     const owner = tokensById.get(meta.owner);
     const stale = !owner || meta.scale !== scaleKey(owner) || meta.v !== BAR_VERSION;
-    if (!isShape(item) || !wanted.has(k) || existing.has(k) || stale) {
+    const rightType = isCross(meta.kind) ? isLine(item) : isShape(item);
+    if (!rightType || !wanted.has(k) || existing.has(k) || stale) {
       toDelete.push(item.id);
       continue;
     }
     existing.set(k, item);
   }
 
-  const toUpdate = new Map<string, (s: Shape) => void>();
+  const toUpdate = new Map<string, (s: Item) => void>();
   const toAdd: Item[] = [];
   const built = new Set<string>();
   for (const [k, w] of wanted) {
@@ -148,8 +160,8 @@ async function doSync() {
   // Add before deleting so a rejected add never leaves the scene empty.
   if (toAdd.length) await OBR.scene.items.addItems(toAdd);
   if (toUpdate.size) {
-    await OBR.scene.items.updateItems<Shape>([...toUpdate.keys()], (drafts) => {
-      for (const d of drafts) toUpdate.get(d.id)?.(d as Shape);
+    await OBR.scene.items.updateItems([...toUpdate.keys()], (drafts) => {
+      for (const d of drafts) toUpdate.get(d.id)?.(d);
     });
   }
   if (toDelete.length) await OBR.scene.items.deleteItems(toDelete);
@@ -165,9 +177,16 @@ function segment(meta: BarMeta, data: TokenData, kind: "fill" | "temp") {
   return { x: innerX + innerWidth * from, width: Math.max(innerWidth * (to - from), 0.01), empty: to - from <= 0 };
 }
 
-function diff(item: Shape, w: Wanted): ((s: Shape) => void) | null {
-  const changes: ((s: Shape) => void)[] = [];
+function diff(item: Item, w: Wanted): ((s: Item) => void) | null {
+  const changes: ((s: Item) => void)[] = [];
   if (item.visible !== w.visible) changes.push((s) => (s.visible = w.visible));
+  if (isShape(item)) changes.push(...shapeChanges(item, w));
+  if (!changes.length) return null;
+  return (s) => changes.forEach((c) => c(s));
+}
+
+function shapeChanges(item: Shape, w: Wanted): ((s: Item) => void)[] {
+  const changes: ((s: Shape) => void)[] = [];
   const color = hpColor(barFill(w.data).ratio);
   if (w.kind === "fill" || w.kind === "temp") {
     const seg = segment(item.metadata[BAR_KEY] as BarMeta, w.data, w.kind);
@@ -183,12 +202,15 @@ function diff(item: Shape, w: Wanted): ((s: Shape) => void) | null {
   if (w.kind === "bg" && item.style.strokeColor !== color) {
     changes.push((s) => (s.style.strokeColor = color));
   }
-  if (!changes.length) return null;
-  return (s) => changes.forEach((c) => c(s));
+  return changes as ((s: Item) => void)[];
 }
 
 function base(w: Wanted, meta: BarMeta) {
-  return buildShape()
+  return attach(buildShape(), w, meta);
+}
+
+function attach<B extends ReturnType<typeof buildShape> | ReturnType<typeof buildLine>>(builder: B, w: Wanted, meta: BarMeta): B {
+  return builder
     .attachedTo(w.token.id)
     .layer("ATTACHMENT")
     .locked(true)
@@ -196,14 +218,34 @@ function base(w: Wanted, meta: BarMeta) {
     .disableAutoZIndex(true)
     .disableAttachmentBehavior(["ROTATION", "COPY"])
     .visible(w.visible)
-    .metadata({ [BAR_KEY]: { ...meta, v: BAR_VERSION } });
+    .metadata({ [BAR_KEY]: { ...meta, v: BAR_VERSION } }) as B;
 }
 
-async function build(w: Wanted, dpi: number): Promise<Shape[]> {
+async function build(w: Wanted, dpi: number): Promise<(Shape | Line)[]> {
   const bounds = await OBR.scene.items.getItemBounds([w.token.id]);
   const scale = scaleKey(w.token);
   const owner = w.token.id;
   const z = Date.now();
+
+  if (isCross(w.kind)) {
+    // A red X across the token, under the HP bar.
+    const inset = bounds.width * 0.18;
+    const { min, max } = bounds;
+    const [from, to] =
+      w.kind === "x1"
+        ? [{ x: min.x + inset, y: min.y + inset }, { x: max.x - inset, y: max.y - inset }]
+        : [{ x: max.x - inset, y: min.y + inset }, { x: min.x + inset, y: max.y - inset }];
+    return [
+      attach(buildLine(), w, { owner, kind: w.kind, scale })
+        .startPosition(from)
+        .endPosition(to)
+        .strokeColor(DEAD_COLOR)
+        .strokeOpacity(0.85)
+        .strokeWidth(dpi * 0.08)
+        .zIndex(z - 1)
+        .build(),
+    ];
+  }
 
   if (w.kind === "ring") {
     const box = ringBox(bounds);

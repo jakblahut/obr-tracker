@@ -114,6 +114,18 @@ h2 {
   text-align: center;
 }
 
+.row.dead {
+  opacity: 0.5;
+}
+
+.row.dead .marker {
+  color: var(--enemy);
+}
+
+.row.dead .name {
+  text-decoration: line-through;
+}
+
 .row .name {
   overflow: hidden;
   text-overflow: ellipsis;
