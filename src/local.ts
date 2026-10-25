@@ -2,7 +2,7 @@ import OBR, { Effect, Item, Uniform, buildEffect, isEffect } from "@owlbear-rode
 import { barRect, ringBox } from "./geometry";
 import { ID, TokenData, barFill, hpColor, readCombat, tokenData } from "./shared";
 import { BAR_SKSL, RING_SKSL } from "./shaders";
-import { RING_COLOR, overlaysFor, scaleKey } from "./sync";
+import { overlaysFor, ringColor, scaleKey } from "./sync";
 
 /**
  * Animated overlays drawn on top of the static scene shapes. Owlbear only
@@ -67,6 +67,10 @@ function barUniforms(data: TokenData): Uniform[] {
   ];
 }
 
+function ringUniforms(data: TokenData): Uniform[] {
+  return [{ name: "color", value: rgb(ringColor(data)) }];
+}
+
 async function doSync() {
   if (!(await OBR.scene.isReady())) return;
   const [items, localItems, sceneMetadata, dpi, role] = await Promise.all([
@@ -111,8 +115,8 @@ async function doSync() {
     const item = existing.get(k);
     if (!item) {
       toAdd.push(await build(w, dpi));
-    } else if (w.kind === "bar") {
-      const uniforms = barUniforms(w.data);
+    } else {
+      const uniforms = w.kind === "bar" ? barUniforms(w.data) : ringUniforms(w.data);
       if (JSON.stringify(item.uniforms) !== JSON.stringify(uniforms)) toUpdate.set(item.id, uniforms);
     }
   }
@@ -148,7 +152,7 @@ async function build(w: Wanted, dpi: number): Promise<Item> {
       .height(box.size)
       .position({ x: box.x, y: box.y })
       .sksl(RING_SKSL)
-      .uniforms([{ name: "color", value: rgb(RING_COLOR) }])
+      .uniforms(ringUniforms(w.data))
       .build();
   }
 

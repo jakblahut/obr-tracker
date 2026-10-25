@@ -64,8 +64,8 @@ half4 main(float2 coord) {
   vec2 p = coord / size * 2.0 - 1.0;
   float r = length(p);
   float radius = 0.86;
-  float line = 1.0 - smoothstep(0.02, 0.05, abs(r - radius));
-  float glow = 1.0 - smoothstep(0.0, 0.13, abs(r - radius));
+  float line = 1.0 - smoothstep(0.008, 0.025, abs(r - radius));
+  float glow = 1.0 - smoothstep(0.0, 0.09, abs(r - radius));
   float a = atan(p.y, p.x);
   float head = mod(time * 2.2, 2.0 * PI) - PI;
   // 0 at the comet head, growing along the tail behind it.

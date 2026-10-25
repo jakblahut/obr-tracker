@@ -13,7 +13,7 @@ import { BAR_KEY, CombatData, TokenData, barFill, hpColor, readCombat, tokenData
 type Kind = "bg" | "fill" | "temp" | "ring";
 
 /** Bump when bar geometry or style changes so old items get rebuilt. */
-const BAR_VERSION = 4;
+const BAR_VERSION = 5;
 
 interface BarMeta {
   v?: number;
@@ -33,7 +33,12 @@ interface Wanted {
   data: TokenData;
 }
 
-export const RING_COLOR = "#ffd23f";
+export const RING_PARTY = "#b46bff";
+export const RING_ENEMY = "#ff3b3b";
+
+export function ringColor(data: TokenData) {
+  return data.party ? RING_PARTY : RING_ENEMY;
+}
 export const TEMP_COLOR = "#5bbfff";
 
 let running = false;
@@ -169,6 +174,9 @@ function diff(item: Shape, w: Wanted): ((s: Shape) => void) | null {
     if (item.style.fillOpacity !== opacity) changes.push((s) => (s.style.fillOpacity = opacity));
     if (w.kind === "fill" && item.style.fillColor !== color) changes.push((s) => (s.style.fillColor = color));
   }
+  if (w.kind === "ring" && item.style.strokeColor !== ringColor(w.data)) {
+    changes.push((s) => (s.style.strokeColor = ringColor(w.data)));
+  }
   if (w.kind === "bg" && item.style.strokeColor !== color) {
     changes.push((s) => (s.style.strokeColor = color));
   }
@@ -203,10 +211,10 @@ async function build(w: Wanted, dpi: number): Promise<Shape[]> {
         .height(box.ringDiameter)
         .position(bounds.center)
         .fillOpacity(0)
-        .strokeColor(RING_COLOR)
-        // Dim, so the animated comet drawn on top stands out.
-        .strokeOpacity(0.6)
-        .strokeWidth(dpi * 0.05)
+        .strokeColor(ringColor(w.data))
+        // Faint, so the animated comet drawn on top is what you notice.
+        .strokeOpacity(0.2)
+        .strokeWidth(dpi * 0.025)
         .zIndex(z)
         .build(),
     ];
