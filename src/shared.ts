@@ -15,6 +15,7 @@ export interface TokenData {
   maxHp: number;
   init: number | null;
   ac?: number | null;
+  tempHp?: number;
 }
 
 /**
@@ -77,4 +78,32 @@ export function hpColor(ratio: number): string {
 export function hpRatio(data: TokenData): number {
   if (data.maxHp <= 0) return 0;
   return Math.min(1, Math.max(0, data.hp / data.maxHp));
+}
+
+/**
+ * Where the HP fill and the temp HP segment end on the bar (0..1). Temp HP
+ * extends the bar's scale so it stays visible at full HP.
+ */
+export function barFill(data: TokenData) {
+  const temp = Math.max(0, data.tempHp ?? 0);
+  const total = Math.max(data.maxHp, data.hp + temp, 1);
+  return { hp: data.hp / total, temp: (data.hp + temp) / total, ratio: hpRatio(data) };
+}
+
+/** Damage eats temp HP first; healing never touches it. */
+export function applyHpChange(data: TokenData, delta: number): Pick<TokenData, "hp" | "tempHp"> {
+  let temp = data.tempHp ?? 0;
+  let hp = data.hp;
+  if (delta < 0) {
+    const absorbed = Math.min(temp, -delta);
+    temp -= absorbed;
+    hp += delta + absorbed;
+  } else {
+    hp += delta;
+  }
+  return { hp: clampHp(hp, data.maxHp), tempHp: temp };
+}
+
+export function clampHp(hp: number, maxHp: number) {
+  return Math.max(0, maxHp > 0 ? Math.min(hp, maxHp) : hp);
 }

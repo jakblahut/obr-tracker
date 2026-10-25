@@ -79,7 +79,7 @@ h2 {
 
 .row {
   display: grid;
-  grid-template-columns: 22px 1fr auto auto auto auto auto;
+  grid-template-columns: 22px 1fr auto auto auto auto auto auto;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
@@ -90,11 +90,15 @@ h2 {
 }
 
 .row.with-init {
-  grid-template-columns: 22px 1fr auto auto auto auto auto auto;
+  grid-template-columns: 22px 1fr auto auto auto auto auto auto auto;
 }
 
 .row input.init {
   border-color: var(--turn);
+}
+
+.row input.temp {
+  color: #5bbfff;
 }
 
 .row.turn {

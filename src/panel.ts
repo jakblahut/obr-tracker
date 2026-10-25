@@ -4,6 +4,8 @@ import {
   SCENE_KEY,
   TOKEN_KEY,
   TokenData,
+  applyHpChange,
+  clampHp,
   combatOrder,
   readCombat,
   tokenData,
@@ -117,12 +119,19 @@ function row(token: Item): HTMLElement {
   fight.addEventListener("click", () => patchToken(token.id, { inCombat: !data.inCombat }));
 
   const hp = numberInput(data.hp, "HP", (raw) => {
-    const n = parseHp(raw, data.hp);
-    if (n === null) return render();
-    const clamped = Math.max(0, data.maxHp > 0 ? Math.min(n, data.maxHp) : n);
-    patchToken(token.id, { hp: clamped });
+    const s = raw.replace(/\s/g, "");
+    const n = Number(s);
+    if (!s || Number.isNaN(n)) return render();
+    patchToken(token.id, /^[+-]/.test(s) ? applyHpChange(data, n) : { hp: clampHp(n, data.maxHp) });
   });
-  hp.title = "HP (e.g. 23, -7, +5)";
+  hp.title = "HP (e.g. 23, or -7 / +5; damage uses temp HP first)";
+  const temp = numberInput(data.tempHp || null, "Tmp", (raw) => {
+    const n = parseHp(raw, data.tempHp ?? 0);
+    if (n === null && raw.trim() !== "") return render();
+    patchToken(token.id, { tempHp: Math.max(0, n ?? 0) });
+  });
+  temp.title = "Temp HP";
+  temp.classList.add("temp");
   const maxHp = numberInput(data.maxHp, "Max", (raw) => {
     const n = Number(raw);
     if (Number.isNaN(n) || n < 0) return render();
@@ -153,7 +162,7 @@ function row(token: Item): HTMLElement {
     init.classList.add("init");
     cells.push(init);
   }
-  cells.push(el("span", { className: "hp" }, hp, "/", maxHp), ac, remove);
+  cells.push(el("span", { className: "hp" }, hp, "/", maxHp), temp, ac, remove);
   return el("div", { className: classes.join(" ") }, ...cells);
 }
 
