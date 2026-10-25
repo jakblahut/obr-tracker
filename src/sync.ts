@@ -73,7 +73,7 @@ function key(owner: string, kind: Kind) {
 export function overlaysFor(data: TokenData, tokenId: string, combat: CombatData) {
   const fighting = combat.phase !== "idle" && data.inCombat;
   return {
-    bar: data.maxHp > 0 && (fighting || (combat.showPartyHp && data.party)),
+    bar: data.maxHp > 0 && (fighting || (data.party ? combat.showPartyHp : combat.showEnemyHp)),
     ring: combat.phase === "active" && combat.turnId === tokenId,
   };
 }

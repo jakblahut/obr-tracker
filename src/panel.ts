@@ -204,9 +204,14 @@ function renderHeader() {
     header.append(el("span", { className: "round" }, `Round ${combat.round}`), back, next, end);
   }
 
-  const toggle = el("input", { type: "checkbox", checked: combat.showPartyHp });
-  toggle.addEventListener("change", () => setCombat({ showPartyHp: toggle.checked }));
-  header.append(el("label", {}, toggle, "Show party HP outside combat"));
+  const partyToggle = el("input", { type: "checkbox", checked: combat.showPartyHp });
+  partyToggle.addEventListener("change", () => setCombat({ showPartyHp: partyToggle.checked }));
+  const enemyToggle = el("input", { type: "checkbox", checked: combat.showEnemyHp });
+  enemyToggle.addEventListener("change", () => setCombat({ showEnemyHp: enemyToggle.checked }));
+  header.append(
+    el("label", {}, partyToggle, "Show party HP outside combat"),
+    el("label", {}, enemyToggle, "Show enemy HP outside combat (GM only)"),
+  );
 }
 
 const byName = (a: Item, b: Item) => tokenName(a).localeCompare(tokenName(b));

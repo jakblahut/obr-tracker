@@ -30,6 +30,8 @@ export interface CombatData {
   turnId: string | null;
   /** Show party HP bars outside of combat too. */
   showPartyHp: boolean;
+  /** Show enemy HP bars outside of combat (only the GM ever sees them). */
+  showEnemyHp: boolean;
 }
 
 export const DEFAULT_COMBAT: CombatData = {
@@ -37,6 +39,7 @@ export const DEFAULT_COMBAT: CombatData = {
   round: 0,
   turnId: null,
   showPartyHp: false,
+  showEnemyHp: false,
 };
 
 export function readCombat(metadata: Metadata): CombatData {
