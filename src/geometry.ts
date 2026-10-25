@@ -18,6 +18,12 @@ export function barRect(bounds: BoundingBox, dpi: number) {
   };
 }
 
+/** Square the X effect draws into; the strokes reach 64% of the way to its edges. */
+export function crossBox(bounds: BoundingBox) {
+  const size = bounds.width;
+  return { x: bounds.center.x - size / 2, y: bounds.center.y - size / 2, size };
+}
+
 /** Square the ring effect draws into; the ring itself sits at 86% of it. */
 export function ringBox(bounds: BoundingBox) {
   const size = bounds.width * 1.25;

@@ -1,8 +1,8 @@
 import OBR, { Effect, Item, Uniform, buildEffect, isEffect } from "@owlbear-rodeo/sdk";
-import { barRect, ringBox } from "./geometry";
-import { ID, TokenData, barFill, hpColor, readCombat, tokenData } from "./shared";
-import { BAR_SKSL, RING_SKSL } from "./shaders";
-import { overlaysFor, ringColor, scaleKey } from "./sync";
+import { barRect, crossBox, ringBox } from "./geometry";
+import { ID, TokenData, barFill, hpColor, isDead, readCombat, tokenData } from "./shared";
+import { BAR_SKSL, CROSS_SKSL, RING_SKSL } from "./shaders";
+import { DEAD_COLOR, overlaysFor, ringColor, scaleKey } from "./sync";
 
 /**
  * Animated overlays drawn on top of the static scene shapes. Owlbear only
@@ -12,7 +12,7 @@ import { overlaysFor, ringColor, scaleKey } from "./sync";
 
 const LOCAL_KEY = `${ID}/local`;
 
-type Kind = "bar" | "ring";
+type Kind = "bar" | "ring" | "cross";
 
 interface LocalMeta {
   owner: string;
@@ -71,6 +71,12 @@ function ringUniforms(data: TokenData): Uniform[] {
   return [{ name: "color", value: rgb(ringColor(data)) }];
 }
 
+function uniformsFor(w: Wanted): Uniform[] {
+  if (w.kind === "bar") return barUniforms(w.data);
+  if (w.kind === "ring") return ringUniforms(w.data);
+  return [{ name: "color", value: rgb(DEAD_COLOR) }];
+}
+
 async function doSync() {
   if (!(await OBR.scene.isReady())) return;
   const [items, localItems, sceneMetadata, dpi, role] = await Promise.all([
@@ -93,6 +99,7 @@ async function doSync() {
     const show = overlaysFor(data, token.id, combat);
     if (show.bar && (isGM || data.party)) wanted.set(key(token.id, "bar"), { token, kind: "bar", data });
     if (show.ring) wanted.set(key(token.id, "ring"), { token, kind: "ring", data });
+    if (isDead(data)) wanted.set(key(token.id, "cross"), { token, kind: "cross", data });
   }
 
   const toDelete: string[] = [];
@@ -116,7 +123,7 @@ async function doSync() {
     if (!item) {
       toAdd.push(await build(w, dpi));
     } else {
-      const uniforms = w.kind === "bar" ? barUniforms(w.data) : ringUniforms(w.data);
+      const uniforms = uniformsFor(w);
       if (JSON.stringify(item.uniforms) !== JSON.stringify(uniforms)) toUpdate.set(item.id, uniforms);
     }
   }
@@ -140,10 +147,21 @@ async function build(w: Wanted, dpi: number): Promise<Item> {
     .locked(true)
     .disableHit(true)
     .disableAutoZIndex(true)
-    // The animated ring sits under the animated bar.
-    .zIndex(w.kind === "ring" ? Z_ABOVE_SHAPES : Z_ABOVE_SHAPES + 1)
+    // X under the ring, ring under the bar.
+    .zIndex(Z_ABOVE_SHAPES + { cross: -1, ring: 0, bar: 1 }[w.kind])
     .disableAttachmentBehavior(["ROTATION", "COPY"])
     .metadata({ [LOCAL_KEY]: meta });
+
+  if (w.kind === "cross") {
+    const box = crossBox(bounds);
+    return effect
+      .width(box.size)
+      .height(box.size)
+      .position({ x: box.x, y: box.y })
+      .sksl(CROSS_SKSL)
+      .uniforms(uniformsFor(w))
+      .build();
+  }
 
   if (w.kind === "ring") {
     const box = ringBox(bounds);

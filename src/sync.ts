@@ -16,7 +16,7 @@ type Kind = "bg" | "fill" | "temp" | "ring" | "x1" | "x2";
 const isCross = (kind: Kind) => kind === "x1" || kind === "x2";
 
 /** Bump when bar geometry or style changes so old items get rebuilt. */
-const BAR_VERSION = 6;
+const BAR_VERSION = 7;
 
 interface BarMeta {
   v?: number;
@@ -39,7 +39,7 @@ interface Wanted {
 /** Keeps rings under bars on the same layer. */
 const RING_Z_DROP = 1e12;
 
-const DEAD_COLOR = "#e5383b";
+export const DEAD_COLOR = "#e5383b";
 
 export const RING_PARTY = "#b46bff";
 export const RING_ENEMY = "#ff3b3b";
@@ -228,7 +228,7 @@ async function build(w: Wanted, dpi: number): Promise<(Shape | Line)[]> {
   const z = Date.now();
 
   if (isCross(w.kind)) {
-    // A red X across the token, under the HP bar.
+    // A faint red X across the token, under the HP bar; local.ts animates it.
     const inset = bounds.width * 0.18;
     const { min, max } = bounds;
     const [from, to] =
@@ -240,8 +240,8 @@ async function build(w: Wanted, dpi: number): Promise<(Shape | Line)[]> {
         .startPosition(from)
         .endPosition(to)
         .strokeColor(DEAD_COLOR)
-        .strokeOpacity(0.85)
-        .strokeWidth(dpi * 0.08)
+        .strokeOpacity(0.15)
+        .strokeWidth(dpi * 0.02)
         .zIndex(z - 1)
         .build(),
     ];

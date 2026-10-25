@@ -75,3 +75,30 @@ half4 main(float2 coord) {
   return half4(color * alpha, alpha);
 }
 `;
+
+/** Dead enemy: a thin red X that smoulders, embers drifting along each stroke. */
+export const CROSS_SKSL = `
+uniform vec2 size;
+uniform float time;
+uniform vec3 color;
+${NOISE}
+float stroke(vec2 p, vec2 dir) {
+  // Distance from the diagonal, and how far along it we are (-1..1).
+  float along = dot(p, dir);
+  float across = abs(dot(p, vec2(-dir.y, dir.x)));
+  float extent = 0.64 * 1.41421356;
+  float fade = 1.0 - smoothstep(extent - 0.05, extent, abs(along));
+  float ember = smoothstep(0.25, 0.85, noise(vec2(along * 7.0 - time * 2.4, dot(dir, vec2(3.0, 7.0)))));
+  float line = 1.0 - smoothstep(0.006, 0.018, across);
+  float glow = 1.0 - smoothstep(0.0, 0.06, across);
+  float pulse = 0.65 + 0.35 * sin(time * 2.0);
+  return fade * (line * (0.6 + 0.4 * ember) + glow * 0.8 * pulse * ember);
+}
+
+half4 main(float2 coord) {
+  vec2 p = coord / size * 2.0 - 1.0;
+  float a = max(stroke(p, vec2(0.70710678, 0.70710678)), stroke(p, vec2(0.70710678, -0.70710678)));
+  a = clamp(a, 0.0, 1.0);
+  return half4(color * a, a);
+}
+`;
