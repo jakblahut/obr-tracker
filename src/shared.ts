@@ -1,0 +1,69 @@
+import { Item, Metadata } from "@owlbear-rodeo/sdk";
+
+export const ID = "sk.blahut.tracker";
+/** Metadata on a token that is in our tracker. */
+export const TOKEN_KEY = `${ID}/token`;
+/** Metadata on the bar/ring items we draw. */
+export const BAR_KEY = `${ID}/bar`;
+/** Combat state stored on the scene. */
+export const SCENE_KEY = `${ID}/combat`;
+
+export interface TokenData {
+  party: boolean;
+  inCombat: boolean;
+  hp: number;
+  maxHp: number;
+  init: number | null;
+}
+
+export interface CombatData {
+  active: boolean;
+  round: number;
+  turnId: string | null;
+  /** Show party HP bars outside of combat too. */
+  showPartyHp: boolean;
+}
+
+export const DEFAULT_COMBAT: CombatData = {
+  active: false,
+  round: 0,
+  turnId: null,
+  showPartyHp: false,
+};
+
+export function readCombat(metadata: Metadata): CombatData {
+  return { ...DEFAULT_COMBAT, ...(metadata[SCENE_KEY] as Partial<CombatData> | undefined) };
+}
+
+export function tokenData(item: Item): TokenData | undefined {
+  return item.metadata[TOKEN_KEY] as TokenData | undefined;
+}
+
+export function tokenName(item: Item): string {
+  const text = (item as { text?: { plainText?: string } }).text?.plainText;
+  return text || item.name || "?";
+}
+
+/** Tokens taking part in combat, highest initiative first. */
+export function combatOrder(items: Item[]): Item[] {
+  return items
+    .filter((i) => tokenData(i)?.inCombat)
+    .sort((a, b) => {
+      const ia = tokenData(a)!.init ?? -Infinity;
+      const ib = tokenData(b)!.init ?? -Infinity;
+      if (ia !== ib) return ib - ia;
+      return tokenName(a).localeCompare(tokenName(b));
+    });
+}
+
+/** Green above half, yellow above a quarter, red below. */
+export function hpColor(ratio: number): string {
+  if (ratio > 0.5) return "#3ccf4e";
+  if (ratio > 0.25) return "#f2c230";
+  return "#e5383b";
+}
+
+export function hpRatio(data: TokenData): number {
+  if (data.maxHp <= 0) return 0;
+  return Math.min(1, Math.max(0, data.hp / data.maxHp));
+}

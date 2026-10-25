@@ -1,0 +1,156 @@
+:root {
+  --bg: #1e2231;
+  --row: #2a2f42;
+  --text: #ffffff;
+  --muted: #9aa0b4;
+  --accent: #9d99ff;
+  --turn: #ffd23f;
+  --party: #3ccf4e;
+  --enemy: #e5383b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.3 system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+header .round {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+header label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+button {
+  background: var(--row);
+  color: var(--text);
+  border: 1px solid #3c4260;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #11131c;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+h2 {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto auto auto auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: var(--row);
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.row.turn {
+  border-color: var(--turn);
+}
+
+.row.out {
+  opacity: 0.55;
+}
+
+.row .marker {
+  color: var(--turn);
+  text-align: center;
+}
+
+.row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.row .name:hover {
+  text-decoration: underline;
+}
+
+.row input {
+  width: 42px;
+  padding: 4px;
+  background: #151826;
+  color: var(--text);
+  border: 1px solid #3c4260;
+  border-radius: 4px;
+  font: inherit;
+  text-align: center;
+}
+
+.row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.hp {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+}
+
+.icon {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.icon.off {
+  opacity: 0.3;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 8px;
+}
