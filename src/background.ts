@@ -1,5 +1,6 @@
 import OBR, { ContextMenuIconFilter } from "@owlbear-rodeo/sdk";
 import { ID, TOKEN_KEY, TokenData } from "./shared";
+import { requestLocalSync } from "./local";
 import { requestSync } from "./sync";
 
 const icon = (file: string) => new URL(file, window.location.href).href;
@@ -58,19 +59,23 @@ function setupContextMenus() {
 
 let unsubscribe: (() => void)[] = [];
 
-function watchScene(ready: boolean) {
+function watchScene(ready: boolean, isGM: boolean) {
   unsubscribe.forEach((u) => u());
   unsubscribe = [];
   if (!ready) return;
-  unsubscribe.push(OBR.scene.items.onChange(() => requestSync()));
-  unsubscribe.push(OBR.scene.onMetadataChange(() => requestSync()));
-  requestSync();
+  const sync = () => {
+    // Only the GM writes the static scene shapes; everyone draws their own animation.
+    if (isGM) requestSync();
+    requestLocalSync();
+  };
+  unsubscribe.push(OBR.scene.items.onChange(sync));
+  unsubscribe.push(OBR.scene.onMetadataChange(sync));
+  sync();
 }
 
 OBR.onReady(async () => {
   setupContextMenus();
-  // Only the GM draws bars; everyone else (players, the cast) just sees them.
-  if ((await OBR.player.getRole()) !== "GM") return;
-  OBR.scene.onReadyChange(watchScene);
-  watchScene(await OBR.scene.isReady());
+  const isGM = (await OBR.player.getRole()) === "GM";
+  OBR.scene.onReadyChange((ready) => watchScene(ready, isGM));
+  watchScene(await OBR.scene.isReady(), isGM);
 });
