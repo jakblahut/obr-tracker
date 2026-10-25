@@ -20,6 +20,6 @@ export function barRect(bounds: BoundingBox, dpi: number) {
 
 /** Square the ring effect draws into; the ring itself sits at 86% of it. */
 export function ringBox(bounds: BoundingBox) {
-  const size = bounds.width * 1.4;
+  const size = bounds.width * 1.25;
   return { x: bounds.center.x - size / 2, y: bounds.center.y - size / 2, size, ringDiameter: size * 0.86 };
 }

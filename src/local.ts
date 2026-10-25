@@ -140,7 +140,8 @@ async function build(w: Wanted, dpi: number): Promise<Item> {
     .locked(true)
     .disableHit(true)
     .disableAutoZIndex(true)
-    .zIndex(Z_ABOVE_SHAPES)
+    // The animated ring sits under the animated bar.
+    .zIndex(w.kind === "ring" ? Z_ABOVE_SHAPES : Z_ABOVE_SHAPES + 1)
     .disableAttachmentBehavior(["ROTATION", "COPY"])
     .metadata({ [LOCAL_KEY]: meta });
 

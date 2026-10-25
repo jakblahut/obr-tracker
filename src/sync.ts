@@ -13,7 +13,7 @@ import { BAR_KEY, CombatData, TokenData, barFill, hpColor, readCombat, tokenData
 type Kind = "bg" | "fill" | "temp" | "ring";
 
 /** Bump when bar geometry or style changes so old items get rebuilt. */
-const BAR_VERSION = 5;
+const BAR_VERSION = 6;
 
 interface BarMeta {
   v?: number;
@@ -32,6 +32,9 @@ interface Wanted {
   visible: boolean;
   data: TokenData;
 }
+
+/** Keeps rings under bars on the same layer. */
+const RING_Z_DROP = 1e12;
 
 export const RING_PARTY = "#b46bff";
 export const RING_ENEMY = "#ff3b3b";
@@ -213,9 +216,10 @@ async function build(w: Wanted, dpi: number): Promise<Shape[]> {
         .fillOpacity(0)
         .strokeColor(ringColor(w.data))
         // Faint, so the animated comet drawn on top is what you notice.
-        .strokeOpacity(0.2)
+        .strokeOpacity(0.05)
         .strokeWidth(dpi * 0.025)
-        .zIndex(z)
+        // Below the HP bar shapes.
+        .zIndex(z - RING_Z_DROP)
         .build(),
     ];
   }
