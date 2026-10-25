@@ -157,6 +157,7 @@ function base(w: Wanted, meta: BarMeta) {
     .layer("ATTACHMENT")
     .locked(true)
     .disableHit(true)
+    .disableAutoZIndex(true)
     .disableAttachmentBehavior(["ROTATION", "COPY"])
     .visible(w.visible)
     .metadata({ [BAR_KEY]: meta });
