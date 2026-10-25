@@ -38,10 +38,16 @@ function parseHp(input: string, current: number): number | null {
   return /^[+-]/.test(s) ? current + n : n;
 }
 
+function parseOptional(raw: string): number | null | undefined {
+  if (raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 function startCombat() {
   const order = combatOrder(tokens);
   if (!order.length) return;
-  setCombat({ active: true, round: 1, turnId: order[0].id });
+  setCombat({ phase: "active", round: 1, turnId: order[0].id });
 }
 
 function step(dir: 1 | -1) {
@@ -75,104 +81,128 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function numberInput(value: number | null, title: string, onCommit: (raw: string) => void) {
-  const input = el("input", { value: value === null ? "" : String(value), title });
-  const commit = () => onCommit(input.value);
+function numberInput(value: number | null | undefined, title: string, onCommit: (raw: string) => void) {
+  const input = el("input", { value: value == null ? "" : String(value), title, placeholder: title });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") input.blur();
   });
-  input.addEventListener("change", commit);
+  input.addEventListener("change", () => onCommit(input.value));
   return input;
 }
 
 function row(token: Item): HTMLElement {
   const data = tokenData(token)!;
-  const isTurn = combat.active && combat.turnId === token.id;
+  const showInit = combat.phase !== "idle";
+  const isTurn = combat.phase === "active" && combat.turnId === token.id;
   const classes = ["row"];
+  if (showInit) classes.push("with-init");
   if (isTurn) classes.push("turn");
-  if (combat.active && !data.inCombat) classes.push("out");
+  if (combat.phase !== "idle" && !data.inCombat) classes.push("out");
 
-  const name = el("span", { className: "name", title: "Označiť token" }, tokenName(token));
+  const name = el("span", { className: "name", title: "Select token" }, tokenName(token));
   name.addEventListener("click", () => OBR.player.select([token.id]));
 
   const side = el(
     "button",
-    { className: "icon", title: data.party ? "Partia (klik: nepriateľ)" : "Nepriateľ (klik: partia)" },
+    { className: "icon", title: data.party ? "Party (click: make enemy)" : "Enemy (click: make party)" },
     data.party ? "🛡️" : "💀",
   );
   side.addEventListener("click", () => patchToken(token.id, { party: !data.party }));
 
   const fight = el(
     "button",
-    { className: `icon${data.inCombat ? "" : " off"}`, title: data.inCombat ? "V boji" : "Mimo boja" },
+    { className: `icon${data.inCombat ? "" : " off"}`, title: data.inCombat ? "In combat" : "Not in combat" },
     "⚔️",
   );
   fight.addEventListener("click", () => patchToken(token.id, { inCombat: !data.inCombat }));
 
-  const init = numberInput(data.init, "Iniciatíva", (raw) => {
-    const n = raw.trim() === "" ? null : Number(raw);
-    if (n === null || !Number.isNaN(n)) patchToken(token.id, { init: n });
-  });
-
-  const hp = numberInput(data.hp, "HP (napr. 23, -7, +5)", (raw) => {
+  const hp = numberInput(data.hp, "HP", (raw) => {
     const n = parseHp(raw, data.hp);
     if (n === null) return render();
     const clamped = Math.max(0, data.maxHp > 0 ? Math.min(n, data.maxHp) : n);
     patchToken(token.id, { hp: clamped });
   });
-  const maxHp = numberInput(data.maxHp, "Max HP", (raw) => {
+  hp.title = "HP (e.g. 23, -7, +5)";
+  const maxHp = numberInput(data.maxHp, "Max", (raw) => {
     const n = Number(raw);
     if (Number.isNaN(n) || n < 0) return render();
     // First time max is set, start at full HP.
     const hpValue = data.maxHp === 0 && data.hp === 0 ? n : Math.min(data.hp, n);
     patchToken(token.id, { maxHp: n, hp: hpValue });
   });
+  const ac = numberInput(data.ac, "AC", (raw) => {
+    const n = parseOptional(raw);
+    if (n === undefined) return render();
+    patchToken(token.id, { ac: n });
+  });
 
-  const remove = el("button", { className: "icon", title: "Odobrať z trackera" }, "✕");
+  const remove = el("button", { className: "icon", title: "Remove from tracker" }, "✕");
   remove.addEventListener("click", () =>
     OBR.scene.items.updateItems([token.id], (drafts) => {
       for (const d of drafts) delete d.metadata[TOKEN_KEY];
     }),
   );
 
-  const node = el(
-    "div",
-    { className: classes.join(" ") },
-    el("span", { className: "marker" }, isTurn ? "▶" : ""),
-    name,
-    side,
-    fight,
-    init,
-    el("span", { className: "hp" }, hp, "/", maxHp),
-    remove,
-  );
-  return node;
+  const cells: (Node | string)[] = [el("span", { className: "marker" }, isTurn ? "▶" : ""), name, side, fight];
+  if (showInit) {
+    const init = numberInput(data.init, "Init", (raw) => {
+      const n = parseOptional(raw);
+      if (n === undefined) return render();
+      patchToken(token.id, { init: n });
+    });
+    init.classList.add("init");
+    cells.push(init);
+  }
+  cells.push(el("span", { className: "hp" }, hp, "/", maxHp), ac, remove);
+  return el("div", { className: classes.join(" ") }, ...cells);
 }
 
 function renderHeader() {
   header.replaceChildren();
-  if (combat.active) {
-    const back = el("button", { title: "Späť" }, "◀");
-    back.addEventListener("click", () => step(-1));
-    const next = el("button", { className: "primary" }, "Ďalší ▶");
-    next.addEventListener("click", () => step(1));
-    const end = el("button", {}, "Ukončiť");
-    end.addEventListener("click", () => setCombat({ active: false, round: 0, turnId: null }));
-    header.append(el("span", { className: "round" }, `Kolo ${combat.round}`), back, next, end);
-  } else {
-    const fighters = combatOrder(tokens);
+  const fighters = combatOrder(tokens);
+
+  if (combat.phase === "idle") {
+    const prepare = el(
+      "button",
+      { className: "primary", disabled: !fighters.length, title: "Mark combatants with ⚔️ first" },
+      "Prepare combat",
+    );
+    prepare.addEventListener("click", () => setCombat({ phase: "setup", round: 0, turnId: null }));
+    header.append(el("span", { className: "round" }, "Out of combat"), prepare);
+  } else if (combat.phase === "setup") {
+    const missing = fighters.filter((t) => tokenData(t)!.init == null).length;
+    const cancel = el("button", {}, "Cancel");
+    cancel.addEventListener("click", () => setCombat({ phase: "idle", round: 0, turnId: null }));
     const start = el(
       "button",
-      { className: "primary", disabled: !fighters.length, title: "Najprv označ ⚔️ kto bojuje" },
-      "Začať boj",
+      {
+        className: "primary",
+        disabled: !fighters.length,
+        title: missing ? `${missing} without initiative (they go last)` : "",
+      },
+      "Start combat",
     );
     start.addEventListener("click", startCombat);
-    header.append(el("span", { className: "round" }, "Mimo boja"), start);
+    const status = missing ? `Initiative: ${missing} missing` : "Initiative ready";
+    header.append(el("span", { className: "round" }, status), cancel, start);
+  } else {
+    const back = el("button", { title: "Previous turn" }, "◀");
+    back.addEventListener("click", () => step(-1));
+    const next = el("button", { className: "primary" }, "Next ▶");
+    next.addEventListener("click", () => step(1));
+    const end = el("button", {}, "End");
+    end.addEventListener("click", () => setCombat({ phase: "idle", round: 0, turnId: null }));
+    header.append(el("span", { className: "round" }, `Round ${combat.round}`), back, next, end);
   }
+
   const toggle = el("input", { type: "checkbox", checked: combat.showPartyHp });
   toggle.addEventListener("change", () => setCombat({ showPartyHp: toggle.checked }));
-  header.append(el("label", {}, toggle, "Zobraziť HP partie aj mimo boja"));
+  header.append(el("label", {}, toggle, "Show party HP outside combat"));
 }
+
+const byName = (a: Item, b: Item) => tokenName(a).localeCompare(tokenName(b));
+const partyFirst = (a: Item, b: Item) =>
+  Number(tokenData(b)!.party) - Number(tokenData(a)!.party) || byName(a, b);
 
 function render() {
   // Don't rebuild the list under the user's cursor while they type.
@@ -185,25 +215,31 @@ function render() {
   list.replaceChildren();
 
   if (!tokens.length) {
-    list.append(
-      el("div", { className: "empty" }, "Žiadne tokeny. Pravý klik na token → Pridať do partie / Pridať ako nepriateľa."),
-    );
+    list.append(el("div", { className: "empty" }, "No tokens yet. Right-click a token → Add to party / Add as enemy."));
     return;
   }
 
-  if (combat.active) {
+  if (combat.phase === "setup") {
+    // Stable order while typing initiative; sorting happens on Start.
+    const fighters = tokens.filter((t) => tokenData(t)!.inCombat).sort(partyFirst);
+    const rest = tokens.filter((t) => !tokenData(t)!.inCombat).sort(partyFirst);
+    list.append(el("h2", {}, "Combatants: enter initiative"), ...fighters.map(row));
+    if (rest.length) list.append(el("h2", {}, "Not in combat"), ...rest.map(row));
+    return;
+  }
+
+  if (combat.phase === "active") {
     const order = combatOrder(tokens);
-    const rest = tokens.filter((t) => !order.includes(t));
-    list.append(el("h2", {}, "Poradie"), ...order.map(row));
-    if (rest.length) list.append(el("h2", {}, "Mimo boja"), ...rest.map(row));
+    const rest = tokens.filter((t) => !order.includes(t)).sort(partyFirst);
+    list.append(el("h2", {}, "Turn order"), ...order.map(row));
+    if (rest.length) list.append(el("h2", {}, "Not in combat"), ...rest.map(row));
     return;
   }
 
-  const byName = (a: Item, b: Item) => tokenName(a).localeCompare(tokenName(b));
   const party = tokens.filter((t) => tokenData(t)!.party).sort(byName);
   const enemies = tokens.filter((t) => !tokenData(t)!.party).sort(byName);
-  if (party.length) list.append(el("h2", {}, "Partia"), ...party.map(row));
-  if (enemies.length) list.append(el("h2", {}, "Nepriatelia"), ...enemies.map(row));
+  if (party.length) list.append(el("h2", {}, "Party"), ...party.map(row));
+  if (enemies.length) list.append(el("h2", {}, "Enemies"), ...enemies.map(row));
 }
 
 list.addEventListener("focusout", () => {
@@ -238,7 +274,7 @@ async function watchScene(ready: boolean) {
 
 OBR.onReady(async () => {
   if ((await OBR.player.getRole()) !== "GM") {
-    list.append(el("div", { className: "empty" }, "Tracker ovláda len GM."));
+    list.append(el("div", { className: "empty" }, "Only the GM can use the tracker."));
     return;
   }
   OBR.scene.onReadyChange(watchScene);

@@ -10,7 +10,11 @@ import { BAR_KEY, CombatData, TokenData, hpColor, hpRatio, readCombat, tokenData
 
 type Kind = "bg" | "fill" | "ring";
 
+/** Bump when bar geometry or style changes so old items get rebuilt. */
+const BAR_VERSION = 2;
+
 interface BarMeta {
+  v?: number;
   owner: string;
   kind: Kind;
   /** Token scale when the item was built; rebuilt if the token is resized. */
@@ -26,7 +30,6 @@ interface Wanted {
   data: TokenData;
 }
 
-const BAR_STROKE = "#3ccf4e";
 const RING_COLOR = "#ffd23f";
 
 let running = false;
@@ -61,13 +64,13 @@ function wantedItems(tokens: Item[], combat: CombatData): Map<string, Wanted> {
   const wanted = new Map<string, Wanted>();
   for (const token of tokens) {
     const data = tokenData(token)!;
-    const fighting = combat.active && data.inCombat;
+    const fighting = combat.phase !== "idle" && data.inCombat;
     const showBar = data.maxHp > 0 && (fighting || (combat.showPartyHp && data.party));
     if (showBar) {
       wanted.set(key(token.id, "bg"), { token, kind: "bg", visible: data.party, data });
       wanted.set(key(token.id, "fill"), { token, kind: "fill", visible: data.party, data });
     }
-    if (combat.active && combat.turnId === token.id) {
+    if (combat.phase === "active" && combat.turnId === token.id) {
       wanted.set(key(token.id, "ring"), { token, kind: "ring", visible: true, data });
     }
   }
@@ -93,7 +96,7 @@ async function doSync() {
     if (!meta) continue;
     const k = key(meta.owner, meta.kind);
     const owner = tokensById.get(meta.owner);
-    if (!isShape(item) || !wanted.has(k) || existing.has(k) || !owner || meta.scale !== scaleKey(owner)) {
+    if (!isShape(item) || !wanted.has(k) || existing.has(k) || !owner || meta.scale !== scaleKey(owner) || meta.v !== BAR_VERSION) {
       toDelete.push(item.id);
       continue;
     }
@@ -134,13 +137,16 @@ async function doSync() {
 function diff(item: Shape, w: Wanted): ((s: Shape) => void) | null {
   const changes: ((s: Shape) => void)[] = [];
   if (item.visible !== w.visible) changes.push((s) => (s.visible = w.visible));
+  const ratio = hpRatio(w.data);
+  const color = hpColor(ratio);
   if (w.kind === "fill") {
     const meta = item.metadata[BAR_KEY] as BarMeta;
-    const ratio = hpRatio(w.data);
     const width = fillWidth(meta.fullWidth ?? item.width, ratio);
-    const color = hpColor(ratio);
     if (Math.abs(item.width - width) > 0.01) changes.push((s) => (s.width = width));
     if (item.style.fillColor !== color) changes.push((s) => (s.style.fillColor = color));
+  }
+  if (w.kind === "bg" && item.style.strokeColor !== color) {
+    changes.push((s) => (s.style.strokeColor = color));
   }
   if (!changes.length) return null;
   return (s) => changes.forEach((c) => c(s));
@@ -160,7 +166,7 @@ function base(w: Wanted, meta: BarMeta) {
     .disableAutoZIndex(true)
     .disableAttachmentBehavior(["ROTATION", "COPY"])
     .visible(w.visible)
-    .metadata({ [BAR_KEY]: meta });
+    .metadata({ [BAR_KEY]: { ...meta, v: BAR_VERSION } });
 }
 
 async function build(w: Wanted, dpi: number): Promise<Item[]> {
@@ -186,7 +192,7 @@ async function build(w: Wanted, dpi: number): Promise<Item[]> {
 
   const width = bounds.width * 0.8;
   const height = Math.max(dpi * 0.12, 6);
-  const stroke = dpi * 0.03;
+  const stroke = dpi * 0.015;
   const x = bounds.center.x - width / 2;
   const y = bounds.max.y - height - dpi * 0.05;
   const innerWidth = width - stroke;
@@ -200,7 +206,7 @@ async function build(w: Wanted, dpi: number): Promise<Item[]> {
     .position({ x, y })
     .fillColor("#151515")
     .fillOpacity(0.85)
-    .strokeColor(BAR_STROKE)
+    .strokeColor(hpColor(ratio))
     .strokeOpacity(1)
     .strokeWidth(stroke)
     .zIndex(z)

@@ -14,7 +14,7 @@ const notInTracker: ContextMenuIconFilter = {
 
 function addToTracker(party: boolean) {
   return async (context: { items: { id: string }[] }) => {
-    const data: TokenData = { party, inCombat: false, hp: 0, maxHp: 0, init: null };
+    const data: TokenData = { party, inCombat: false, hp: 0, maxHp: 0, init: null, ac: null };
     await OBR.scene.items.updateItems(
       context.items.map((i) => i.id),
       (drafts) => {
@@ -28,12 +28,12 @@ function addToTracker(party: boolean) {
 function setupContextMenus() {
   OBR.contextMenu.create({
     id: `${ID}/add-party`,
-    icons: [{ icon: icon("add.svg"), label: "Pridať do partie", filter: notInTracker }],
+    icons: [{ icon: icon("add.svg"), label: "Add to party", filter: notInTracker }],
     onClick: addToTracker(true),
   });
   OBR.contextMenu.create({
     id: `${ID}/add-enemy`,
-    icons: [{ icon: icon("enemy.svg"), label: "Pridať ako nepriateľa", filter: notInTracker }],
+    icons: [{ icon: icon("enemy.svg"), label: "Add as enemy", filter: notInTracker }],
     onClick: addToTracker(false),
   });
   OBR.contextMenu.create({
@@ -41,7 +41,7 @@ function setupContextMenus() {
     icons: [
       {
         icon: icon("remove.svg"),
-        label: "Odobrať z trackera",
+        label: "Remove from tracker",
         filter: { roles: ["GM"], every: [{ key: ["metadata", TOKEN_KEY], value: undefined, operator: "!=" }] },
       },
     ],

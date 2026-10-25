@@ -14,10 +14,17 @@ export interface TokenData {
   hp: number;
   maxHp: number;
   init: number | null;
+  ac?: number | null;
 }
 
+/**
+ * idle: no combat. setup: combatants chosen, initiative being entered.
+ * active: turns are running.
+ */
+export type Phase = "idle" | "setup" | "active";
+
 export interface CombatData {
-  active: boolean;
+  phase: Phase;
   round: number;
   turnId: string | null;
   /** Show party HP bars outside of combat too. */
@@ -25,14 +32,18 @@ export interface CombatData {
 }
 
 export const DEFAULT_COMBAT: CombatData = {
-  active: false,
+  phase: "idle",
   round: 0,
   turnId: null,
   showPartyHp: false,
 };
 
 export function readCombat(metadata: Metadata): CombatData {
-  return { ...DEFAULT_COMBAT, ...(metadata[SCENE_KEY] as Partial<CombatData> | undefined) };
+  const stored = metadata[SCENE_KEY] as (Partial<CombatData> & { active?: boolean }) | undefined;
+  const combat = { ...DEFAULT_COMBAT, ...stored };
+  // v0.1 stored a boolean instead of a phase.
+  if (!stored?.phase && stored?.active) combat.phase = "active";
+  return combat;
 }
 
 export function tokenData(item: Item): TokenData | undefined {

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "manifest_version": 1,
   "author": "Jakub Blahut",
-  "description": "HP bary na tokenoch a jednoduchý initiative tracker",
+  "description": "HP bars on tokens and a simple initiative tracker",
   "icon": "/icon.svg",
   "background_url": "/background.html",
   "action": {
@@ -11,6 +11,6 @@
     "icon": "/icon.svg",
     "popover": "/index.html",
     "height": 600,
-    "width": 400
+    "width": 440
   }
 }

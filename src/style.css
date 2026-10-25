@@ -89,6 +89,14 @@ h2 {
   border: 1px solid transparent;
 }
 
+.row.with-init {
+  grid-template-columns: 22px 1fr auto auto auto auto auto auto;
+}
+
+.row input.init {
+  border-color: var(--turn);
+}
+
 .row.turn {
   border-color: var(--turn);
 }
@@ -114,8 +122,8 @@ h2 {
 }
 
 .row input {
-  width: 42px;
-  padding: 4px;
+  width: 38px;
+  padding: 4px 2px;
   background: #151826;
   color: var(--text);
   border: 1px solid #3c4260;
